@@ -1,0 +1,75 @@
+;;;; QUESTION 1 ;;;;
+;; main
+add R0, #4, R2      ;; global, int inp_int = 4, stored in R2
+;; we'll use R10, R11, R12 as parameter registers
+add R0, #5, R10     ;; i = 5
+add R0, #3, R11     ;; j = 3
+add R0, #9, R12     ;; k = 9
+add R0, #1, R13     ;; l = 1
+callr max5, R15      ;; call max, put return address in R15
+
+;; we stored parameters in R10-R12 in caller, which are now R26-R28
+;; in callee (i.e. max) bbecause we have shifted the register window
+;; int max(int a, int b, int c)
+max:
+    xor R0, R0, R1                          ;; clear R1, we will use this for 'v' variable
+    sub R26, R27, R0, {C}                   ;; cmp b a	(using 'a' instead of 'v' because we haven't put 'a' in the reigster for 'v' yet)
+    jle mxA                                 
+    add R0, R26, R1                         ;; v = a -- will always be carried out before jump
+    add R0, R27, R1			    ;; v = b -- this line will be carried out only if the above jle line doesn't jump
+mxA:sub R1, R28, R0, {C}                    ;; cmp b v
+    jle mxB                                 
+    xor r0, r0, r0			    ;; NOP as we don't have any useful instructions to put here
+    add R0, R28, R1
+mxB:ret R31, 0                             ;; return address stored in R15/R31
+    xor r0, r0, r0
+
+;; int max(int i, int j, int k, int l)
+;; i,j,k,l are in R26-29, inp_int is in R2 (global register)
+max5:
+    add R0, R2, R10                         ;; parameter 1 = inp_int = 4
+    add R0, R26, R11                        ;; parameter 2 = i
+    add R0, R27, R12                        ;; parameter 2 = j
+    callr max, R15                          ;; max(inp_int, i, j) = res
+    xor r0, r0, r0			    ;; NOP after a call, as register window has changed
+    add R0, R1, R10                         ;; parameter 1 = result
+    add R0, R28, R11                        ;; parameter 2 = k
+    add R0, R29, R12                        ;; parameter 3 = l
+    callr max, R15                          ;; max(res, k, l)
+    xor r0, r0, r0			    ;; NOP after a call, as register window has changed
+    ret R31, 0                              ;; result will be in R1 from max() call
+    xor r0, r0, r0			    ;; NOP after a return, as register window has changed
+
+;;;; QUESTION 2 ;;;;
+;; main
+    add R0, #4, R10                         ;; a = parameter 1 = 4
+    add R0, #7, R11                         ;; b = parameter 2 = 7
+    callr fun, R15                          ;; call fun, return address in R15
+    xor r0, r0, r0			    ;; NOP after a call, as register window has changed
+
+;; Assuming that mod() and div() both take their parameters in R10 and R11 (from perspective of caller)
+;; int fun(int a, int b)
+fun:
+    sub R0, R27, R0, {C}                    ;; if(b == 0)
+    jne fnA                                 ;; skip 
+    add R0, R27, R10                        ;; ALWAYS CARRIED OUT - put b in R10 as parameter for Mod() and Div() (this is quotient parameter)
+    add R0, R0, R1                          ;; return value is 0
+    ret R31, 0
+    xor R0, R0, R0			    ;; nop as nothing useful to put here
+fnA:add R0, #2, R11                         ;; divisor = 2, parameter 2 for Mod() and Div()
+    callr div, R15                          ;; b/2 -- switching around the order slightly so that we can achieve the same result with less instructions
+    xor r0, r0, r0			    ;; NOP after a call, as register window has changed
+    add R0, R1, R16                         ;; R16 = b/2  (LOCAL VARIABLE)
+    callr mod, R15                          ;; result of b % 2 will be in R1
+    xor r0, r0, r0			    ;; NOP after a call, as register window has changed
+    add R0, R1, R17                         ;; R17 = b%2  (LOCAL VARIABLE)
+    add R26, R26, R10                       ;; parameter 1 = a+a
+    add R0, R16, R11                        ;; parameter 2 = b/2    (which was stored in R16)
+    callr fun, R15                          ;; call fun(a + a, b/2)
+    xor r0, r0, r0			    ;; NOP after a call, as register window has changed
+    sub R0, R17, R0, {C}                    ;; if(b%2 == 0)
+    jne fnB                                 ;; if (b%2 != 0), skip straight to the line 'ret (R31)0'
+    add R1, R26, R1                         ;; the idea here is that 'a' will be added to result of fun(a+a, b/2) regardless if if b%2==0 or not, but...
+    sub R1, R26, R1                         ;; if b%2 == 0, then we sub 'a' again (i.e. this line), if b%2 != 0 we don't sub 'a' again (i.e. skip this line)
+fnB:ret R31, 0	                            ;; return, result in R1
+    xor r0, r0, r0			    ;; NOP after a call, as register window has changed

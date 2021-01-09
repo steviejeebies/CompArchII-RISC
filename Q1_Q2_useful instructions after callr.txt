@@ -1,0 +1,68 @@
+;;;; QUESTION 1 ;;;;
+;; main
+add R0, #4, R2      ;; global, int inp_int = 4, stored in R2
+;; we'll use R10, R11, R12 as parameter registers
+add R0, #5, R10     ;; i = 5
+add R0, #3, R11     ;; j = 3
+add R0, #9, R12     ;; k = 9
+callr max5, R15      ;; call max, put return address in R15
+add R0, #1, R13     ;; l = 1		// CARRIED OUT BEFORE ABOVE LINE
+
+;; we stored parameters in R10-R12 in caller, which are now R26-R28
+;; in callee (i.e. max) bbecause we have shifted the register window
+;; int max(int a, int b, int c)
+max:
+    xor R0, R0, R1                          ;; clear R1, we will use this for 'v' variable
+    sub R26, R27, R0, {C}                   ;; cmp b a	(using 'a' instead of 'v' because we haven't put 'a' in the register for 'v' yet)
+    jle mxA                                 
+    add R0, R26, R1                         ;; v = a // CARRIED OUT BEFORE ABOVE LINE
+    add R0, R27, R1			    ;; v = b -- this line will be carried out only if the above jle line doesn't jump
+mxA:sub R1, R28, R0, {C}                    ;; cmp b v
+    jle mxB                                 
+    xor r0, r0, r0			    ;; NOP as we don't have any useful instructions to put here
+    add R0, R28, R1			    ;; v = c
+mxB:ret R31, 0                              ;; return address stored in R15/R31
+    xor R0, r0, R0			    ;; NOP required here as no useful instruction
+
+;; int max(int i, int j, int k, int l)
+;; i,j,k,l are in R26-29, inp_int is in R2 (global register)
+max5:
+    add R0, R2, R10                         ;; parameter 1 = inp_int = 4
+    add R0, R26, R11                        ;; parameter 2 = i
+    callr max, R15                          ;; max(inp_int, i, j) = res
+    add R0, R27, R12                        ;; parameter 3 = j		// CARRIED OUT BEFORE ABOVE LINE
+    add R0, R1, R10                         ;; parameter 1 = result of max() call
+    add R0, R28, R11                        ;; parameter 2 = k
+    callr max, R15                          ;; max(res, k, l)
+    add R0, R29, R12                        ;; parameter 3 = l		// CARRIED OUT BEFORE ABOVE LINE
+    ret R31, 0                              ;; result will be in R1 from max() call
+    xor r0, r0, r0			    ;; NOP after a return, as nothing useful to put here
+
+;;;; QUESTION 2 ;;;;
+;; main
+    add R0, #4, R10                         ;; a = parameter 1 = 4
+    callr fun, R15                          ;; call fun, return address in R15
+    add R0, #7, R11                         ;; b = parameter 2 = 7	// CARRIED OUT BEFORE ABOVE LINE
+
+;; Assuming that mod() and div() both take their parameters in R10 and R11 (from perspective of caller)
+;; int fun(int a, int b)
+fun:
+    sub R0, R27, R0, {C}                    ;; if(b == 0)
+    jne fnA                                 ;; skip, else
+    add R0, R27, R10                        ;; ALWAYS CARRIED OUT - put b in R10 as parameter for Mod() and Div() (this is quotient parameter)
+    ret R31, 0
+    add R0, R0, R1                          ;; return value is 0    // CARRIED OUT BEFORE ABOVE LINE
+fnA:callr div, R15                          ;; b/2 -- switching around the order slightly so that we can achieve the same result with less instructions - we are precalculating b/2 and b%2, and will save them in local (to this window) registers so that they can be used later
+    add R0, #2, R11                         ;; divisor = 2, parameter 2 for Mod() and Div()    // CARRIED OUT BEFORE ABOVE LINE
+    callr mod, R15                          ;; at this point, result of b/2 is in R1, but now we're calling b%2
+    add R0, R1, R16                         ;; R16 = b/2  (LOCAL VARIABLE)	// CARRIED OUT BEFORE ABOVE LINE
+    add R0, R1, R17                         ;; R17 = b%2  (LOCAL VARIABLE)	// this is carried out after mod(b, 2) has been completed
+    add R26, R26, R10                       ;; parameter 1 = a+a
+    callr fun, R15                          ;; call fun(a + a, b/2)
+    add R0, R16, R11                        ;; parameter 2 = b/2    (which was stored in R16)	// CARRIED OUT BEFORE ABOVE LINE
+    sub R0, R17, R0, {C}                    ;; if(b%2 == 0)
+    jne fnB                                 ;; if (b%2 != 0), skip
+    add R1, R26, R1                         ;; // CARRIED OUT BEFORE ABOVE LINE the idea here is that 'a' will be added to result of fun(a+a, b/2) regardless if if b%2==0 or not, but...
+    sub R1, R26, R1                         ;; if b%2 == 0, then we sub 'a' again (i.e. execute this line), if b%2 != 0 we don't sub 'a' again (i.e. skip this line)
+fnB:ret R31, 0	                            ;; return, result in R1
+    xor r0, r0, r0			    ;; NOP after a call, nothing useful to put here
